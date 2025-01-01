@@ -16,8 +16,8 @@ package models
 
 import "gorm.io/plugin/soft_delete"
 
-// Door ...
-type Door struct {
+// AuthRule ...
+type AuthRule struct {
 	CreatedAt int64                 `gorm:"autoCreateTime:milli"`
 	UpdatedAt int64                 `gorm:"autoUpdateTime:milli"`
 	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli"`
@@ -29,7 +29,16 @@ type Door struct {
 	Effect   string `gorm:"column:effect"`
 }
 
-type AuthSource struct {
-	Name     string `json:"name"`
-	Position string `json:"position"`
+// AuthRole ...
+type AuthRole struct {
+	CreatedAt int64                 `gorm:"autoCreateTime:milli"`
+	UpdatedAt int64                 `gorm:"autoUpdateTime:milli"`
+	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli"`
+	ID        int64                 `gorm:"primaryKey"`
+	ULID      string                `gorm:"column:ulid,maxsize:36"`
+
+	Role string `gorm:"column:role"`
+
+	UserID string `gorm:"column:user_id"`
+	User   User
 }

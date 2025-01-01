@@ -390,6 +390,89 @@ func (x Auth) Value() (driver.Value, error) {
 }
 
 const (
+	// AuthPositionParam is a AuthPosition of type param.
+	AuthPositionParam AuthPosition = "param"
+	// AuthPositionJson is a AuthPosition of type json.
+	AuthPositionJson AuthPosition = "json"
+)
+
+var ErrInvalidAuthPosition = errors.New("not a valid AuthPosition")
+
+// String implements the Stringer interface.
+func (x AuthPosition) String() string {
+	return string(x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x AuthPosition) IsValid() bool {
+	_, err := ParseAuthPosition(string(x))
+	return err == nil
+}
+
+var _AuthPositionValue = map[string]AuthPosition{
+	"param": AuthPositionParam,
+	"json":  AuthPositionJson,
+}
+
+// ParseAuthPosition attempts to convert a string to a AuthPosition.
+func ParseAuthPosition(name string) (AuthPosition, error) {
+	if x, ok := _AuthPositionValue[name]; ok {
+		return x, nil
+	}
+	return AuthPosition(""), fmt.Errorf("%s is %w", name, ErrInvalidAuthPosition)
+}
+
+// MustParseAuthPosition converts a string to a AuthPosition, and panics if is not valid.
+func MustParseAuthPosition(name string) AuthPosition {
+	val, err := ParseAuthPosition(name)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+var errAuthPositionNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *AuthPosition) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = AuthPosition("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseAuthPosition(v)
+	case []byte:
+		*x, err = ParseAuthPosition(string(v))
+	case AuthPosition:
+		*x = v
+	case *AuthPosition:
+		if v == nil {
+			return errAuthPositionNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errAuthPositionNilPtr
+		}
+		*x, err = ParseAuthPosition(*v)
+	default:
+		return errors.New("invalid type for AuthPosition")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x AuthPosition) Value() (driver.Value, error) {
+	return x.String(), nil
+}
+
+const (
 	// BuildStatusSuccess is a BuildStatus of type Success.
 	BuildStatusSuccess BuildStatus = "Success"
 	// BuildStatusFailed is a BuildStatus of type Failed.

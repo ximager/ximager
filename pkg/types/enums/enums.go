@@ -311,3 +311,9 @@ type Auth string
 // Automatic,
 // )
 type OperateType string
+
+// AuthPosition x ENUM(
+// param,
+// json,
+// )
+type AuthPosition string
