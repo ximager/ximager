@@ -237,6 +237,16 @@ func valuesFromJSONBody(name string) ValuesExtractor {
 			reqBody, _ = io.ReadAll(c.Request().Body)
 		}
 		c.Request().Body = io.NopCloser(bytes.NewBuffer(reqBody))
+		reqBodyStr := string(reqBody)
+		result := gjson.Get(reqBodyStr, name)
+		if result.IsArray() {
+			var res []string
+			for _, r := range result.Array() {
+				res = append(res, r.String())
+			}
+			return res, nil
+		}
+
 		value := gjson.Get(string(reqBody), name).String()
 		if value == "" {
 			return nil, errJSONExtractorValueMissing

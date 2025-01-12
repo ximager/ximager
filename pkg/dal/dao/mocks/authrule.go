@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	dao "github.com/go-sigma/sigma/pkg/dal/dao"
 	models "github.com/go-sigma/sigma/pkg/dal/models"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -52,4 +53,19 @@ func (m *MockAuthRuleService) Create(arg0 context.Context, arg1 *models.AuthRule
 func (mr *MockAuthRuleServiceMockRecorder) Create(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAuthRuleService)(nil).Create), arg0, arg1)
+}
+
+// ListByScope mocks base method.
+func (m *MockAuthRuleService) ListByScope(arg0 context.Context, arg1 []dao.ScopeItem) ([]*models.AuthRule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByScope", arg0, arg1)
+	ret0, _ := ret[0].([]*models.AuthRule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByScope indicates an expected call of ListByScope.
+func (mr *MockAuthRuleServiceMockRecorder) ListByScope(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByScope", reflect.TypeOf((*MockAuthRuleService)(nil).ListByScope), arg0, arg1)
 }
