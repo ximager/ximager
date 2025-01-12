@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: © 2017 LabStack and Echo contributors
-
 // Copyright 2024 sigma
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,44 +15,21 @@
 package authz
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog/log"
-	"go.uber.org/dig"
 
+	"github.com/go-sigma/sigma/pkg/dal/dao"
 	"github.com/go-sigma/sigma/pkg/middlewares/extractor"
 	"github.com/go-sigma/sigma/pkg/types/enums"
 	"github.com/go-sigma/sigma/pkg/utils"
+	"github.com/go-sigma/sigma/pkg/utils/ptr"
+	"github.com/go-sigma/sigma/pkg/xerrors"
 )
-
-type (
-	// Config defines the config for CasbinAuth middleware
-	Config struct {
-		// Skipper defines a function to skip middleware
-		Skipper middleware.Skipper
-		// DigCon is the dig container
-		DigCon *dig.Container
-	}
-)
-
-// AuthzConfig ...
-type AuthzConfig struct {
-	Skip    bool
-	Sources []AuthzConfigSource
-}
-
-// AuthzConfigSource ...
-type AuthzConfigSource struct {
-	ResourceType string             `json:"resource_type"`
-	Name         string             `json:"name"`
-	Position     enums.AuthPosition `json:"position"`
-	Key          string             `json:"key"`
-	Values       []string           `json:"values,omitempty"`
-}
 
 // AuthMapper ...
 var AuthMapper = make(map[*regexp.Regexp]*AuthzConfig)
@@ -73,79 +47,76 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 			requestUri := requester.RequestURI
 			requestMethod := requester.Method
 
-			// var isDistribution bool
-			// if strings.HasPrefix(requestUri, "/v2") {
-			// 	isDistribution = true
-			// }
+			var isDistribution bool
+			if strings.HasPrefix(requestUri, "/v2") {
+				isDistribution = true
+			}
 
 			echo := utils.MustGetObjFromDigCon[*echo.Echo](config.DigCon)
-			authConfig := authMatchWrapper(echo, c, requestMethod, requestUri)
-			if authConfig == nil {
-				return nil // TODO
-			}
 
-			if authConfig.Skip {
+			authConfig := authMatch(echo, requestMethod, requestUri)
+			if authConfig == nil || authConfig.Skip {
 				return next(c)
 			}
+			for index, source := range authConfig.Sources {
+				if len(ptr.To(source.Scope.ScopeValue.Position)) > 0 && len(ptr.To(source.Scope.ScopeValue.Key)) > 0 {
+					var position = ptr.To(source.Scope.ScopeValue.Position)
+					var key = ptr.To(source.Scope.ScopeValue.Key)
+					extractors := extractor.MustCreateExtractors(fmt.Sprintf("%s:%s", position, key))
+					var values []string
+					for _, extractor := range extractors {
+						vals, err := extractor(c)
+						if err != nil {
+							return nil // TODO
+						}
+						values = append(values, vals...)
+					}
+					authConfig.Sources[index].Resource.ResourceValue.Values = values
+				}
+			}
 
-			// iUser := c.Get(consts.ContextUser)
-			// if iUser == nil {
-			// 	log.Error().Msg("Get user from header failed")
-			// 	if isDistribution {
-			// 		return xerrors.NewDSError(c, xerrors.DSErrCodeUnauthorized)
-			// 	}
-			// 	return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
-			// }
-			// user, ok := iUser.(*models.User)
-			// if !ok {
-			// 	log.Error().Msg("Convert user from header failed")
-			// 	if isDistribution {
-			// 		return xerrors.NewDSError(c, xerrors.DSErrCodeUnauthorized)
-			// 	}
-			// 	return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
-			// }
+			authRuleFactory := utils.MustGetObjFromDigCon[dao.AuthRuleServiceFactory](config.DigCon)
+			authRuleSvc := authRuleFactory.New()
 
-			// pass, err := config.Enforcer.Enforce(strconv.FormatInt(user.ID, 10), "library", "/v2/library/busybox/manifests/latest", "public", strings.ToUpper(request.Method))
-			// if err != nil {
-			// 	if isDistribution {
-			// 		return xerrors.NewDSError(c, xerrors.DSErrCodeUnknown)
-			// 	}
-			// 	return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeInternalError, "Internal server error")
-			// }
-			// if !pass {
-			// 	if isDistribution {
-			// 		return xerrors.NewDSError(c, xerrors.DSErrCodeUnauthorized)
-			// 	}
-			// 	return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
-			// }
+			var scopes = make([]dao.ScopeItem, 0, 20)
+
+			for _, source := range authConfig.Sources {
+				scopes = append(scopes, dao.ScopeItem{
+					ScopeType:  source.Scope.ScopeType,
+					ScopeValue: source.Scope.ScopeValue.Value,
+				})
+			}
+
+			ctx := context.Background()
+			authRules, err := authRuleSvc.ListByScope(ctx, scopes)
+			if err != nil {
+				return nil // TODO
+			}
+			if len(authRules) == 0 {
+				if isDistribution {
+					return xerrors.NewDSError(c, xerrors.DSErrCodeUnauthorized)
+				}
+				return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
+			}
+
+			for _, rule := range authRules {
+				for index, source := range authConfig.Sources {
+					if rule.ScopeType == source.Scope.ScopeType && rule.ScopeValue == source.Scope.ScopeValue.Value {
+						if strings.EqualFold(rule.Role.Action.String(), requestMethod) && rule.Role.Resource == source.Resource.ResourceType {
+							if !source.Matched && source.Effect != enums.AuthEffectDeny {
+								// for _, value := range source.Resource.ResourceValue.Values {
+								// 	// rule.Role.
+								// }
+								authConfig.Sources[index].Matched = true
+								source.Effect = rule.Role.Effect
+							}
+						}
+					}
+				}
+			}
 			return next(c)
 		}
 	}
-}
-
-func authMatchWrapper(echo *echo.Echo, ctx echo.Context, method, uri string) *AuthzConfig {
-	config := authMatch(echo, method, uri)
-	if config == nil || config.Skip {
-		return config
-	}
-	for index, source := range config.Sources {
-		extractors, err := extractor.CreateExtractors(fmt.Sprintf("%s:%s", source.Position.String(), source.Key))
-		if err != nil {
-			log.Warn().Err(err).Msg("create extractors failed")
-			return config
-		}
-		var values []string
-		for _, extractor := range extractors {
-			vals, err := extractor(ctx)
-			if err != nil {
-				log.Warn().Err(err).Msg("extract value failed")
-				return config
-			}
-			values = append(values, vals...)
-		}
-		config.Sources[index].Values = values
-	}
-	return config
 }
 
 func authMatch(echo *echo.Echo, method, uri string) *AuthzConfig {

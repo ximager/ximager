@@ -30,11 +30,22 @@ func newAuthRule(db *gorm.DB, opts ...gen.DOOption) authRule {
 	_authRule.CreatedAt = field.NewInt64(tableName, "created_at")
 	_authRule.UpdatedAt = field.NewInt64(tableName, "updated_at")
 	_authRule.DeletedAt = field.NewUint64(tableName, "deleted_at")
-	_authRule.ID = field.NewString(tableName, "id,maxsize:26,primaryKey")
-	_authRule.Role = field.NewField(tableName, "role")
-	_authRule.Resource = field.NewField(tableName, "resource")
-	_authRule.Action = field.NewField(tableName, "action")
-	_authRule.Effect = field.NewField(tableName, "effect")
+	_authRule.ID = field.NewString(tableName, "ulid,maxsize:26,primaryKey")
+	_authRule.RoleID = field.NewString(tableName, "role_id")
+	_authRule.ScopeValue = field.NewString(tableName, "scope_value")
+	_authRule.ScopeType = field.NewField(tableName, "scope_type")
+	_authRule.UserID = field.NewString(tableName, "user_id")
+	_authRule.Role = authRuleBelongsToRole{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("Role", "models.AuthRole"),
+	}
+
+	_authRule.User = authRuleBelongsToUser{
+		db: db.Session(&gorm.Session{}),
+
+		RelationField: field.NewRelation("User", "models.User"),
+	}
 
 	_authRule.fillFieldMap()
 
@@ -44,15 +55,18 @@ func newAuthRule(db *gorm.DB, opts ...gen.DOOption) authRule {
 type authRule struct {
 	authRuleDo authRuleDo
 
-	ALL       field.Asterisk
-	CreatedAt field.Int64
-	UpdatedAt field.Int64
-	DeletedAt field.Uint64
-	ID        field.String
-	Role      field.Field
-	Resource  field.Field
-	Action    field.Field
-	Effect    field.Field
+	ALL        field.Asterisk
+	CreatedAt  field.Int64
+	UpdatedAt  field.Int64
+	DeletedAt  field.Uint64
+	ID         field.String
+	RoleID     field.String
+	ScopeValue field.String
+	ScopeType  field.Field
+	UserID     field.String
+	Role       authRuleBelongsToRole
+
+	User authRuleBelongsToUser
 
 	fieldMap map[string]field.Expr
 }
@@ -72,11 +86,11 @@ func (a *authRule) updateTableName(table string) *authRule {
 	a.CreatedAt = field.NewInt64(table, "created_at")
 	a.UpdatedAt = field.NewInt64(table, "updated_at")
 	a.DeletedAt = field.NewUint64(table, "deleted_at")
-	a.ID = field.NewString(table, "id,maxsize:26,primaryKey")
-	a.Role = field.NewField(table, "role")
-	a.Resource = field.NewField(table, "resource")
-	a.Action = field.NewField(table, "action")
-	a.Effect = field.NewField(table, "effect")
+	a.ID = field.NewString(table, "ulid,maxsize:26,primaryKey")
+	a.RoleID = field.NewString(table, "role_id")
+	a.ScopeValue = field.NewString(table, "scope_value")
+	a.ScopeType = field.NewField(table, "scope_type")
+	a.UserID = field.NewString(table, "user_id")
 
 	a.fillFieldMap()
 
@@ -101,15 +115,16 @@ func (a *authRule) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (a *authRule) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 8)
+	a.fieldMap = make(map[string]field.Expr, 10)
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
 	a.fieldMap["deleted_at"] = a.DeletedAt
-	a.fieldMap["id,maxsize:26,primaryKey"] = a.ID
-	a.fieldMap["role"] = a.Role
-	a.fieldMap["resource"] = a.Resource
-	a.fieldMap["action"] = a.Action
-	a.fieldMap["effect"] = a.Effect
+	a.fieldMap["ulid,maxsize:26,primaryKey"] = a.ID
+	a.fieldMap["role_id"] = a.RoleID
+	a.fieldMap["scope_value"] = a.ScopeValue
+	a.fieldMap["scope_type"] = a.ScopeType
+	a.fieldMap["user_id"] = a.UserID
+
 }
 
 func (a authRule) clone(db *gorm.DB) authRule {
@@ -120,6 +135,148 @@ func (a authRule) clone(db *gorm.DB) authRule {
 func (a authRule) replaceDB(db *gorm.DB) authRule {
 	a.authRuleDo.ReplaceDB(db)
 	return a
+}
+
+type authRuleBelongsToRole struct {
+	db *gorm.DB
+
+	field.RelationField
+}
+
+func (a authRuleBelongsToRole) Where(conds ...field.Expr) *authRuleBelongsToRole {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a authRuleBelongsToRole) WithContext(ctx context.Context) *authRuleBelongsToRole {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a authRuleBelongsToRole) Session(session *gorm.Session) *authRuleBelongsToRole {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a authRuleBelongsToRole) Model(m *models.AuthRule) *authRuleBelongsToRoleTx {
+	return &authRuleBelongsToRoleTx{a.db.Model(m).Association(a.Name())}
+}
+
+type authRuleBelongsToRoleTx struct{ tx *gorm.Association }
+
+func (a authRuleBelongsToRoleTx) Find() (result *models.AuthRole, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a authRuleBelongsToRoleTx) Append(values ...*models.AuthRole) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a authRuleBelongsToRoleTx) Replace(values ...*models.AuthRole) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a authRuleBelongsToRoleTx) Delete(values ...*models.AuthRole) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a authRuleBelongsToRoleTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a authRuleBelongsToRoleTx) Count() int64 {
+	return a.tx.Count()
+}
+
+type authRuleBelongsToUser struct {
+	db *gorm.DB
+
+	field.RelationField
+}
+
+func (a authRuleBelongsToUser) Where(conds ...field.Expr) *authRuleBelongsToUser {
+	if len(conds) == 0 {
+		return &a
+	}
+
+	exprs := make([]clause.Expression, 0, len(conds))
+	for _, cond := range conds {
+		exprs = append(exprs, cond.BeCond().(clause.Expression))
+	}
+	a.db = a.db.Clauses(clause.Where{Exprs: exprs})
+	return &a
+}
+
+func (a authRuleBelongsToUser) WithContext(ctx context.Context) *authRuleBelongsToUser {
+	a.db = a.db.WithContext(ctx)
+	return &a
+}
+
+func (a authRuleBelongsToUser) Session(session *gorm.Session) *authRuleBelongsToUser {
+	a.db = a.db.Session(session)
+	return &a
+}
+
+func (a authRuleBelongsToUser) Model(m *models.AuthRule) *authRuleBelongsToUserTx {
+	return &authRuleBelongsToUserTx{a.db.Model(m).Association(a.Name())}
+}
+
+type authRuleBelongsToUserTx struct{ tx *gorm.Association }
+
+func (a authRuleBelongsToUserTx) Find() (result *models.User, err error) {
+	return result, a.tx.Find(&result)
+}
+
+func (a authRuleBelongsToUserTx) Append(values ...*models.User) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Append(targetValues...)
+}
+
+func (a authRuleBelongsToUserTx) Replace(values ...*models.User) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Replace(targetValues...)
+}
+
+func (a authRuleBelongsToUserTx) Delete(values ...*models.User) (err error) {
+	targetValues := make([]interface{}, len(values))
+	for i, v := range values {
+		targetValues[i] = v
+	}
+	return a.tx.Delete(targetValues...)
+}
+
+func (a authRuleBelongsToUserTx) Clear() error {
+	return a.tx.Clear()
+}
+
+func (a authRuleBelongsToUserTx) Count() int64 {
+	return a.tx.Count()
 }
 
 type authRuleDo struct{ gen.DO }

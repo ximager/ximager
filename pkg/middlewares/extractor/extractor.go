@@ -48,6 +48,15 @@ var (
 // ValuesExtractor defines a function for extracting values (keys/tokens) from the given context.
 type ValuesExtractor func(c echo.Context) ([]string, error)
 
+// MustCreateExtractors creates ValuesExtractors from given lookups.
+func MustCreateExtractors(lookups string) []ValuesExtractor {
+	extractors, err := CreateExtractors(lookups)
+	if err != nil {
+		panic(err)
+	}
+	return extractors
+}
+
 // CreateExtractors creates ValuesExtractors from given lookups.
 // Lookups is a string in the form of "<source>:<name>" or "<source>:<name>,<source>:<name>" that is used
 // to extract key from the request.
@@ -237,6 +246,16 @@ func valuesFromJSONBody(name string) ValuesExtractor {
 			reqBody, _ = io.ReadAll(c.Request().Body)
 		}
 		c.Request().Body = io.NopCloser(bytes.NewBuffer(reqBody))
+		reqBodyStr := string(reqBody)
+		result := gjson.Get(reqBodyStr, name)
+		if result.IsArray() {
+			var res []string
+			for _, r := range result.Array() {
+				res = append(res, r.String())
+			}
+			return res, nil
+		}
+
 		value := gjson.Get(string(reqBody), name).String()
 		if value == "" {
 			return nil, errJSONExtractorValueMissing
