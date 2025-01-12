@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: © 2017 LabStack and Echo contributors
-
 // Copyright 2024 sigma
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,44 +15,19 @@
 package authz
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog/log"
-	"go.uber.org/dig"
 
+	"github.com/go-sigma/sigma/pkg/dal/dao"
 	"github.com/go-sigma/sigma/pkg/middlewares/extractor"
-	"github.com/go-sigma/sigma/pkg/types/enums"
 	"github.com/go-sigma/sigma/pkg/utils"
+	"github.com/go-sigma/sigma/pkg/xerrors"
 )
-
-type (
-	// Config defines the config for CasbinAuth middleware
-	Config struct {
-		// Skipper defines a function to skip middleware
-		Skipper middleware.Skipper
-		// DigCon is the dig container
-		DigCon *dig.Container
-	}
-)
-
-// AuthzConfig ...
-type AuthzConfig struct {
-	Skip    bool
-	Sources []AuthzConfigSource
-}
-
-// AuthzConfigSource ...
-type AuthzConfigSource struct {
-	ResourceType string             `json:"resource_type"`
-	Name         string             `json:"name"`
-	Position     enums.AuthPosition `json:"position"`
-	Key          string             `json:"key"`
-	Values       []string           `json:"values,omitempty"`
-}
 
 // AuthMapper ...
 var AuthMapper = make(map[*regexp.Regexp]*AuthzConfig)
@@ -73,10 +45,10 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 			requestUri := requester.RequestURI
 			requestMethod := requester.Method
 
-			// var isDistribution bool
-			// if strings.HasPrefix(requestUri, "/v2") {
-			// 	isDistribution = true
-			// }
+			var isDistribution bool
+			if strings.HasPrefix(requestUri, "/v2") {
+				isDistribution = true
+			}
 
 			echo := utils.MustGetObjFromDigCon[*echo.Echo](config.DigCon)
 			authConfig := authMatchWrapper(echo, c, requestMethod, requestUri)
@@ -86,6 +58,40 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 
 			if authConfig.Skip {
 				return next(c)
+			}
+
+			authRuleFactory := utils.MustGetObjFromDigCon[dao.AuthRuleServiceFactory](config.DigCon)
+			authRuleSvc := authRuleFactory.New()
+
+			var scopes = make([]dao.ScopeItem, 0, 20)
+
+			for _, source := range authConfig.Sources {
+				scopes = append(scopes, dao.ScopeItem{
+					ScopeType:  source.Scope.ScopeType,
+					ScopeValue: source.Scope.ScopeValue.Value,
+				})
+			}
+
+			ctx := context.Background()
+			authRules, err := authRuleSvc.ListByScope(ctx, scopes)
+			if err != nil {
+				return nil // TODO
+			}
+			if len(authRules) == 0 {
+				if isDistribution {
+					return xerrors.NewDSError(c, xerrors.DSErrCodeUnauthorized)
+				}
+				return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
+			}
+
+			for _, rule := range authRules {
+				for _, source := range authConfig.Sources {
+					if rule.ScopeType == source.Scope.ScopeType && rule.ScopeValue == source.Scope.ScopeValue.Value {
+						if strings.EqualFold(rule.Role.Action.String(), requestMethod) && rule.Role.Resource == source.Resource.ResourceType {
+							
+						}
+					}
+				}
 			}
 
 			// iUser := c.Get(consts.ContextUser)
