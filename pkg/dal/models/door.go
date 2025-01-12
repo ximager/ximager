@@ -1,4 +1,4 @@
-// Copyright 2023 sigma
+// Copyright 2025 sigma
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,19 +14,23 @@
 
 package models
 
-import "gorm.io/plugin/soft_delete"
+import (
+	"gorm.io/plugin/soft_delete"
+
+	"github.com/go-sigma/sigma/pkg/types/enums"
+)
 
 // AuthRule ...
 type AuthRule struct {
 	CreatedAt int64                 `gorm:"autoCreateTime:milli"`
 	UpdatedAt int64                 `gorm:"autoUpdateTime:milli"`
 	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli"`
-	ID        int64                 `gorm:"primaryKey"`
-	ULID      string                `gorm:"column:ulid,maxsize:36"`
+	ID        string                `gorm:"column:id,maxsize:26,primaryKey"`
 
-	Role     string `gorm:"column:role"`
-	Resource string `gorm:"column:resource"`
-	Effect   string `gorm:"column:effect"`
+	Role     enums.AuthRole     `gorm:"column:role"`
+	Resource enums.AuthResource `gorm:"column:resource"`
+	Action   enums.AuthAction   `gorm:"column:action"`
+	Effect   enums.AuthEffect   `gorm:"column:effect"`
 }
 
 // AuthRole ...
@@ -34,11 +38,14 @@ type AuthRole struct {
 	CreatedAt int64                 `gorm:"autoCreateTime:milli"`
 	UpdatedAt int64                 `gorm:"autoUpdateTime:milli"`
 	DeletedAt soft_delete.DeletedAt `gorm:"softDelete:milli"`
-	ID        int64                 `gorm:"primaryKey"`
-	ULID      string                `gorm:"column:ulid,maxsize:36"`
+	ID        string                `gorm:"column:ulid,maxsize:26,primaryKey"`
 
-	Role string `gorm:"column:role"`
+	RoleID string   `gorm:"column:role_id"`
+	Role   AuthRule `gorm:"foreignKey:RoleID"`
+
+	ScopeValue string          `gorm:"column:scope_value"`
+	ScopeType  enums.AuthScope `gorm:"column:scope_type"`
 
 	UserID string `gorm:"column:user_id"`
-	User   User
+	User   User   `gorm:"foreignKey:UserID"`
 }

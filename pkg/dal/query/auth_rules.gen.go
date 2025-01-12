@@ -30,11 +30,11 @@ func newAuthRule(db *gorm.DB, opts ...gen.DOOption) authRule {
 	_authRule.CreatedAt = field.NewInt64(tableName, "created_at")
 	_authRule.UpdatedAt = field.NewInt64(tableName, "updated_at")
 	_authRule.DeletedAt = field.NewUint64(tableName, "deleted_at")
-	_authRule.ID = field.NewInt64(tableName, "id")
-	_authRule.ULID = field.NewString(tableName, "ulid,maxsize:36")
-	_authRule.Role = field.NewString(tableName, "role")
-	_authRule.Resource = field.NewString(tableName, "resource")
-	_authRule.Effect = field.NewString(tableName, "effect")
+	_authRule.ID = field.NewString(tableName, "id,maxsize:26,primaryKey")
+	_authRule.Role = field.NewField(tableName, "role")
+	_authRule.Resource = field.NewField(tableName, "resource")
+	_authRule.Action = field.NewField(tableName, "action")
+	_authRule.Effect = field.NewField(tableName, "effect")
 
 	_authRule.fillFieldMap()
 
@@ -48,11 +48,11 @@ type authRule struct {
 	CreatedAt field.Int64
 	UpdatedAt field.Int64
 	DeletedAt field.Uint64
-	ID        field.Int64
-	ULID      field.String
-	Role      field.String
-	Resource  field.String
-	Effect    field.String
+	ID        field.String
+	Role      field.Field
+	Resource  field.Field
+	Action    field.Field
+	Effect    field.Field
 
 	fieldMap map[string]field.Expr
 }
@@ -72,11 +72,11 @@ func (a *authRule) updateTableName(table string) *authRule {
 	a.CreatedAt = field.NewInt64(table, "created_at")
 	a.UpdatedAt = field.NewInt64(table, "updated_at")
 	a.DeletedAt = field.NewUint64(table, "deleted_at")
-	a.ID = field.NewInt64(table, "id")
-	a.ULID = field.NewString(table, "ulid,maxsize:36")
-	a.Role = field.NewString(table, "role")
-	a.Resource = field.NewString(table, "resource")
-	a.Effect = field.NewString(table, "effect")
+	a.ID = field.NewString(table, "id,maxsize:26,primaryKey")
+	a.Role = field.NewField(table, "role")
+	a.Resource = field.NewField(table, "resource")
+	a.Action = field.NewField(table, "action")
+	a.Effect = field.NewField(table, "effect")
 
 	a.fillFieldMap()
 
@@ -105,10 +105,10 @@ func (a *authRule) fillFieldMap() {
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt
 	a.fieldMap["deleted_at"] = a.DeletedAt
-	a.fieldMap["id"] = a.ID
-	a.fieldMap["ulid,maxsize:36"] = a.ULID
+	a.fieldMap["id,maxsize:26,primaryKey"] = a.ID
 	a.fieldMap["role"] = a.Role
 	a.fieldMap["resource"] = a.Resource
+	a.fieldMap["action"] = a.Action
 	a.fieldMap["effect"] = a.Effect
 }
 

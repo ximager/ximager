@@ -50,10 +50,11 @@ type AuthzConfig struct {
 
 // AuthzConfigSource ...
 type AuthzConfigSource struct {
-	Name     string             `json:"name"`
-	Position enums.AuthPosition `json:"position"`
-	Key      string             `json:"key"`
-	Values   []string           `json:"values,omitempty"`
+	ResourceType string             `json:"resource_type"`
+	Name         string             `json:"name"`
+	Position     enums.AuthPosition `json:"position"`
+	Key          string             `json:"key"`
+	Values       []string           `json:"values,omitempty"`
 }
 
 // AuthMapper ...
@@ -68,8 +69,9 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			requestUri := c.Request().RequestURI
-			requestMethod := c.Request().Method
+			requester := c.Request()
+			requestUri := requester.RequestURI
+			requestMethod := requester.Method
 
 			// var isDistribution bool
 			// if strings.HasPrefix(requestUri, "/v2") {
@@ -78,7 +80,11 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 
 			echo := utils.MustGetObjFromDigCon[*echo.Echo](config.DigCon)
 			authConfig := authMatchWrapper(echo, c, requestMethod, requestUri)
-			if authConfig == nil || authConfig.Skip {
+			if authConfig == nil {
+				return nil // TODO
+			}
+
+			if authConfig.Skip {
 				return next(c)
 			}
 

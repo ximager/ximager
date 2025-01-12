@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-sigma/sigma/pkg/dal/models"
 	"github.com/go-sigma/sigma/pkg/dal/query"
+	"github.com/go-sigma/sigma/pkg/types/enums"
 )
 
 //go:generate mockgen -destination=mocks/authrule.go -package=mocks github.com/go-sigma/sigma/pkg/dal/dao AuthRuleService
@@ -49,6 +50,6 @@ func (s *authRuleService) Create(ctx context.Context, authRule *models.AuthRule)
 }
 
 // ListByResource list auth rule by resource
-func (s *authRuleService) ListByResource(ctx context.Context, resource string) ([]*models.AuthRule, error) {
+func (s *authRuleService) ListByResource(ctx context.Context, resource enums.AuthResource) ([]*models.AuthRule, error) {
 	return s.tx.AuthRule.WithContext(ctx).Where(s.tx.AuthRule.Resource.Eq(resource)).Find()
 }
