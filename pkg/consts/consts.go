@@ -101,7 +101,7 @@ const (
 	e = some(where (p.eft == allow)) && !some(where (p.eft == deny))
 
 	[matchers]
-	m = g(r.sub, p.sub, r.ns) && keyMatch(r.ns, p.ns) && urlMatch(r.url, p.url) && regexMatch(r.visibility, p.visibility) && regexMatch(r.method, p.method) && p.effect == "allow" || r.sub == "admin" || r.sub == "root"`
+	m = g(r.sub, p.sub, r.ns) && keyMatch(r.ns, p.ns) && regexMatch(r.visibility, p.visibility) && regexMatch(r.method, p.method) && p.effect == "allow" || r.sub == "admin" || r.sub == "root"`
 )
 
 var (

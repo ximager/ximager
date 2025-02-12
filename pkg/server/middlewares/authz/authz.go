@@ -16,6 +16,7 @@ package authz
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -23,7 +24,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.uber.org/dig"
 
+	"github.com/go-sigma/sigma/pkg/consts"
 	"github.com/go-sigma/sigma/pkg/dal"
+	"github.com/go-sigma/sigma/pkg/dal/dao"
+	"github.com/go-sigma/sigma/pkg/dal/models"
+	"github.com/go-sigma/sigma/pkg/utils"
 	"github.com/go-sigma/sigma/pkg/xerrors"
 )
 
@@ -45,7 +50,7 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 			}
 
 			requester := c.Request()
-			requestUri := requester.RequestURI
+			requestUri := strings.TrimSpace(requester.RequestURI)
 			requestMethod := requester.Method
 
 			var isDistribution bool
@@ -53,7 +58,61 @@ func AuthzWithConfig(config Config) echo.MiddlewareFunc {
 				isDistribution = true
 			}
 
-			passed, matched, err := dal.AuthEnforcer.Enforcer.EnforceEx("userid", "namespace", "", "public", requestMethod)
+			user, ok := utils.GetFromCtx[*models.User](c, consts.ContextUser)
+			if !ok {
+				log.Error().Msg("get user from header failed")
+				return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized)
+			}
+
+			nsSvcFactory := utils.MustGetObjFromDigCon[dao.NamespaceServiceFactory](config.DigCon)
+			nsSvc := nsSvcFactory.New()
+
+			switch {
+			case strings.HasPrefix(requestUri, "/v2"):
+
+			case strings.HasPrefix(requestUri, consts.APIV1):
+				switch {
+				case strings.HasPrefix(requestUri, fmt.Sprintf("%s/namespaces/", consts.APIV1)):
+					if requestUri == fmt.Sprintf("%s/namespaces/", consts.APIV1) {
+						return next(c)
+					} else {
+						namespaceID := strings.TrimSpace(c.Param("namespace_id"))
+						if namespaceID == "" {
+							return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
+						}
+						nsID, _ := strconv.ParseInt(namespaceID, 10, 64)
+						namespace, err := nsSvc.Get(c.Request().Context(), nsID)
+						if err != nil {
+							log.Error().Err(err).Msg("get namespace failed")
+							return xerrors.HTTPErrCodeInternalError.Detail(fmt.Sprintf("get namespace failed: %v", err))
+						}
+						fmt.Println(89, user.ID, namespace, requestUri, "public", requestMethod, isDistribution, c.Param("id"))
+						passed, matched, err := dal.AuthEnforcer.Enforcer.EnforceEx(strconv.FormatInt(user.ID, 10), namespace.Name, requestUri, namespace.Visibility, requestMethod)
+						if err != nil {
+							if isDistribution {
+								return xerrors.NewDSError(c, xerrors.DSErrCodeUnknown)
+							}
+							return xerrors.HTTPErrCodeInternalError.Detail(fmt.Sprintf("get scope from database failed: %v", err))
+						}
+						log.Debug().Strs("matched", matched).Bool("result", passed).Msg("matched")
+						if !passed {
+							if isDistribution {
+								return xerrors.NewDSError(c, xerrors.DSErrCodeUnauthorized)
+							}
+							return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
+						}
+						return next(c)
+					}
+				default:
+					log.Error().Msg("url not match any rule")
+					return xerrors.NewHTTPError(c, xerrors.HTTPErrCodeUnauthorized, "Authorization failed")
+				}
+			default:
+				return next(c)
+			}
+
+			fmt.Println(user.ID, "namespace", requestUri, "public", requestMethod, isDistribution, c.Param("id"))
+			passed, matched, err := dal.AuthEnforcer.Enforcer.EnforceEx(strconv.FormatInt(user.ID, 10), "namespace", requestUri, "public", requestMethod)
 			if err != nil {
 				if isDistribution {
 					return xerrors.NewDSError(c, xerrors.DSErrCodeUnknown)

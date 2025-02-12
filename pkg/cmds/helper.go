@@ -94,9 +94,11 @@ func NewEchoServer(digCon *dig.Container) (*echo.Echo, error) {
 	}
 	e.Use(middlewares.RedirectRepository(config))
 	e.Use(authn.AuthnWithConfig(authn.Config{
+		DigCon:  digCon,
 		Skipper: genSkipper(),
 	}))
 	e.Use(authz.AuthzWithConfig(authz.Config{
+		DigCon:  digCon,
 		Skipper: genSkipper(),
 	}))
 	return e, nil

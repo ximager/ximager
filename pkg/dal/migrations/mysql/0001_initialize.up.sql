@@ -498,7 +498,8 @@ INSERT INTO `casbin_rules` (`ptype`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`)
   ('p', 'NamespaceReader', '/*', 'API$*/**$namespaces/*/repositories/', 'public|private', 'GET', 'allow'), -- list repositories
   ('p', 'NamespaceReader', '/*', 'API$*/**$namespaces/*/repositories/*', 'public|private', 'GET', 'allow'), -- get repository
   ('p', 'NamespaceManager', '/*', '*', 'public', 'GET|HEAD', 'allow'),
-  ('p', 'NamespaceAdmin', '/*', '*', 'public', 'GET|HEAD', 'allow');
+  ('p', 'NamespaceAdmin', '/*', '*', 'public', 'GET|HEAD', 'allow'),
+  ('g', '3', 'Root', '*', '', '', '');
 
 INSERT INTO `namespaces` (`name`, `visibility`)
   VALUES ('library', 'public');
@@ -626,7 +627,7 @@ CREATE TABLE IF NOT EXISTS `caches` (
   `deleted_at` bigint NOT NULL DEFAULT 0
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-CREATE INDEX `idx_created_at` ON `caches` (`created_at`) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+CREATE INDEX `idx_created_at` ON `caches` (`created_at`);
 
 CREATE TABLE IF NOT EXISTS `settings` (
   `id` bigint AUTO_INCREMENT PRIMARY KEY,
